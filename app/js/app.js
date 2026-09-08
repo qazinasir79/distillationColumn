@@ -192,7 +192,7 @@ function renderHome() {
     <a class="pcard" style="--pc:#7048e8" href="#/glossary"><div class="top"><span class="ico">📖</span><h3>Glossary</h3></div><p>Every term and abbreviation from the notes, in plain language.</p><span class="go">Browse →</span></a>
   </div>
 
-  <footer class="foot">Built from your handwritten distillation notes (8-page PDF) · all diagrams, formulas and troubleshooting tables are transcribed from the source.</footer>`;
+  <footer class="foot">© 2026 Qazi Nasir · <a href="https://qazinasir.com" target="_blank" rel="noopener">qazinasir.com</a></footer>`;
   return { html, init: () => { buildSidebar('home'); } };
 }
 
