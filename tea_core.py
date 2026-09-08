@@ -497,6 +497,24 @@ def plant_to_jsonable(plant_cfg: Dict[str, Any], equipment_specs: List[Dict[str,
     return {"plant": deepcopy(plant_cfg), "equipment": deepcopy(equipment_specs)}
 
 
+def normalize_equipment_specs(entries: List[Dict[str, Any]],
+                               default_process_type: str = "Fluids") -> List[Dict[str, Any]]:
+    """Fill defaults for imported equipment dicts (missing keys, process type)."""
+    norm = []
+    for e in entries:
+        norm.append({
+            "name": e.get("name", f"EQ-{len(norm)+1}"),
+            "category": e.get("category"),
+            "type": e.get("type"),
+            "param": e.get("param", 0.0),
+            "material": e.get("material", "Carbon steel"),
+            "process_type": e.get("process_type", default_process_type),
+            "target_year": e.get("target_year", 2024),
+            "num_units": e.get("num_units"),
+        })
+    return norm
+
+
 def parse_uploaded_json(obj: Dict[str, Any]):
     """Accept {plant, equipment} or OpenPyTEA-style configs. Returns (plant_cfg, equipment_specs)."""
     if "plant" in obj and "equipment" in obj:
@@ -515,13 +533,14 @@ def fmt_money(x) -> str:
         import math
         if x is None or (isinstance(x, float) and (math.isnan(x) or math.isinf(x))):
             return "—"
+        sign = "-" if x < 0 else ""
         ax = abs(x)
         if ax >= 1e9:
-            return f"${x/1e9:.2f}B"
+            return f"{sign}${ax/1e9:.2f}B"
         if ax >= 1e6:
-            return f"${x/1e6:.2f}M"
+            return f"{sign}${ax/1e6:.2f}M"
         if ax >= 1e3:
-            return f"${x/1e3:.0f}k"
-        return f"${x:,.0f}"
+            return f"{sign}${ax/1e3:.0f}k"
+        return f"{sign}${ax:,.0f}"
     except Exception:
         return "—"

@@ -182,8 +182,45 @@ def test_distillation_content_complete():
 
 def test_recommender_rules():
     assert recommend_distillation(50, False, False, False, False)[0] == "Simple"
+    assert recommend_distillation(25, False, False, False, False)[0] == "Simple"  # boundary
+    assert recommend_distillation(24, False, False, False, False)[0] == "Fractional"
     assert recommend_distillation(10, False, False, False, False)[0] == "Fractional"
     assert recommend_distillation(10, True, False, False, True)[0] == "Vacuum"
     assert recommend_distillation(10, True, False, True, False)[0] == "Steam"
     assert recommend_distillation(10, False, True, True, False)[0] == "Azeotropic"
     assert recommend_distillation(10, False, True, False, False)[0] == "Extractive"
+
+
+# ---- formatting + import helpers ----------------------------------------------
+
+@pytest.mark.parametrize("v,exp", [
+    (1_500_000_000, "$1.50B"), (-37_448_192, "-$37.45M"), (2_500_000, "$2.50M"),
+    (-1500, "-$2k"), (999, "$999"), (-999, "-$999"), (0, "$0"),
+    (float("nan"), "—"), (float("inf"), "—"), (None, "—"),
+])
+def test_fmt_money(v, exp):
+    assert T.fmt_money(v) == exp
+
+
+def test_normalize_equipment_specs_defaults():
+    out = T.normalize_equipment_specs([{"category": "Pumps", "type": "Centrifugal"}])
+    assert out[0]["name"] == "EQ-1"
+    assert out[0]["param"] == 0.0
+    assert out[0]["material"] == "Carbon steel"
+    assert out[0]["process_type"] == "Fluids"
+    assert out[0]["target_year"] == 2024
+    out2 = T.normalize_equipment_specs([{"name": "P", "category": "Pumps"}],
+                                       default_process_type="Mixed")
+    assert out2[0]["process_type"] == "Mixed"
+
+
+def test_preset_files_match_in_memory_presets():
+    """presets/*.json must mirror tea_core.PRESETS (the UI loads the file)."""
+    preset_dir = Path(__file__).parents[1] / "presets"
+    slug_of = {n.split("—")[0].strip().lower().replace(" ", "_").replace("/", "_"): n
+               for n in T.PRESETS}
+    assert set(slug_of) == {f.stem for f in preset_dir.glob("*.json")}
+    for slug, name in slug_of.items():
+        obj = json.loads((preset_dir / f"{slug}.json").read_text())
+        assert obj["plant"] == T.PRESETS[name]["plant"], slug
+        assert obj["equipment"] == T.PRESETS[name]["equipment"], slug

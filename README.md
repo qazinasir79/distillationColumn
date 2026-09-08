@@ -38,9 +38,10 @@ pip install -r requirements-dev.txt
 pytest tests/ -q
 ```
 
-28 tests cover: all presets + KPIs, a 384-entry cost-database sweep, CEPCI-gap
+40 tests cover: all presets + KPIs, a 384-entry cost-database sweep, CEPCI-gap
 handling, breakdown/cash-flow/sensitivity/tornado/Monte-Carlo smoke tests,
-input sanitizers, malformed-input handling, and the distillation content base.
+input sanitizers, malformed-input handling, money formatting, preset-file
+parity, import normalization, and the distillation content base.
 
 ## 📁 Repository layout
 

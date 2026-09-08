@@ -16,6 +16,7 @@ from __future__ import annotations
 
 import json
 from copy import deepcopy
+from pathlib import Path
 
 import matplotlib
 matplotlib.use("Agg")
@@ -122,6 +123,8 @@ sanitize_tornado = T.sanitize_tornado
 def init_state():
     if "preset_name" not in st.session_state:
         st.session_state.preset_name = "Fractional — Ethanol/Water (continuous)"
+    st.session_state.setdefault("editor_ver", 0)
+    st.session_state.setdefault("dirty", False)
     if "plant_cfg" not in st.session_state or "equipment_specs" not in st.session_state:
         reset_to_preset(st.session_state.preset_name)
     st.session_state.setdefault("mc_data", None)
@@ -134,6 +137,43 @@ def reset_to_preset(name: str):
     st.session_state.plant_cfg = deepcopy(p["plant"])
     st.session_state.equipment_specs = deepcopy(p["equipment"])
     st.session_state.mc_data = None
+    st.session_state.dirty = False
+    # bump editor keys so data_editors drop stale widget state
+    st.session_state.editor_ver = st.session_state.get("editor_ver", 0) + 1
+
+
+def mark_dirty():
+    """Flag the working plant as edited and drop cached MC results."""
+    st.session_state.dirty = True
+    st.session_state.mc_data = None
+
+
+_MISSING = object()
+
+
+def set_cfg(key, value, rerun=True):
+    """Write a plant-config value, tracking genuine user edits.
+
+    Backfilling a missing default is *not* an edit; changing an existing
+    value marks the plant dirty, invalidates Monte Carlo results, and
+    reruns so the sidebar badge updates in the same interaction.
+    Pass rerun=False for keystroke widgets (e.g. plant name) to avoid
+    double runs while typing.
+    """
+    cfg = st.session_state.plant_cfg
+    old = cfg.get(key, _MISSING)
+    if old is _MISSING:
+        cfg[key] = value
+        return
+    try:
+        changed = bool(old != value)
+    except Exception:
+        changed = True
+    if changed:
+        cfg[key] = value
+        mark_dirty()
+        if rerun:
+            st.rerun()
 
 
 init_state()
@@ -158,9 +198,8 @@ with st.sidebar:
         reset_to_preset(preset_choice)
         st.rerun()
     _base = T.PRESETS[st.session_state.preset_name]
-    _custom = (st.session_state.plant_cfg != _base["plant"]
-               or st.session_state.equipment_specs != _base["equipment"])
-    st.caption((_base["blurb"] + ("  \n✏️ **Edited** — differs from the preset." if _custom else "")))
+    st.caption(_base["blurb"] + ("  \n✏️ **Edited** — differs from the preset."
+                                 if st.session_state.get("dirty", False) else ""))
     if st.button("↺ Reset to preset", use_container_width=True):
         reset_to_preset(st.session_state.preset_name)
         st.rerun()
@@ -178,6 +217,21 @@ def current_plant():
         return plant, []
     except Exception as e:
         return None, [str(e)]
+
+
+def import_plant_dict(obj: dict):
+    """Load a {plant, equipment} dict into the working plant. Raises on error."""
+    pcfg, peq = T.parse_uploaded_json(obj)
+    if pcfg:
+        st.session_state.plant_cfg.update(pcfg)
+    if peq:
+        st.session_state.equipment_specs = T.normalize_equipment_specs(
+            peq, st.session_state.plant_cfg.get("process_type", "Fluids"))
+    # keep the selected preset as the reset baseline; the
+    # sidebar "✏️ Edited" badge will flag the difference
+    mark_dirty()
+    st.session_state.editor_ver = st.session_state.get("editor_ver", 0) + 1
+    st.session_state.tea_ran = False
 
 
 # ============================================================================
@@ -440,32 +494,36 @@ elif page == "🏭 Plant TEA Builder":
     with st.expander("⚙️ Plant basics & finance", expanded=True):
         b1, b2, b3, b4 = st.columns(4)
         with b1:
-            cfg["plant_name"] = st.text_input("Plant name", value=cfg.get("plant_name", "My Distillation Plant"))
-            cfg["process_type"] = st.selectbox("Process type", T.PROCESS_TYPES,
-                index=T.PROCESS_TYPES.index(cfg.get("process_type", "Fluids")))
-            cfg["production_type"] = st.selectbox("Production mode", ["continuous", "batch"],
-                index=["continuous", "batch"].index(cfg.get("production_type", "continuous")))
+            set_cfg("plant_name", st.text_input("Plant name", value=cfg.get("plant_name", "My Distillation Plant")), rerun=False)
+            set_cfg("process_type", st.selectbox("Process type", T.PROCESS_TYPES,
+                index=T.PROCESS_TYPES.index(cfg.get("process_type", "Fluids"))))
+            set_cfg("production_type", st.selectbox("Production mode", ["continuous", "batch"],
+                index=["continuous", "batch"].index(cfg.get("production_type", "continuous"))))
+            cfg = st.session_state.plant_cfg  # refresh alias after writes
         with b2:
             countries = T.COUNTRIES
             ci = countries.index(cfg.get("country", "Netherlands")) if cfg.get("country") in countries else 0
-            cfg["country"] = st.selectbox("Country", countries, index=ci)
+            set_cfg("country", st.selectbox("Country", countries, index=ci))
+            cfg = st.session_state.plant_cfg
             regions = T.regions_for_country(cfg["country"])
             ri = regions.index(cfg.get("region", regions[0])) if cfg.get("region") in regions else 0
             picked_region = st.selectbox("Region", regions, index=ri)
             # "—" means the country has a single national factor
             if picked_region != "—":
-                cfg["region"] = picked_region
+                set_cfg("region", picked_region)
             st.caption(f"Location factor ≈ **{T.loc_factor_for(cfg['country'], cfg.get('region', '')):.2f}**")
         with b3:
-            cfg["interest_rate"] = st.number_input("Interest / discount rate", 0.0, 0.30, float(cfg.get("interest_rate", 0.09)), 0.005, format="%.3f")
-            cfg["project_lifetime"] = st.number_input("Project lifetime (years)", 5, 40, int(cfg.get("project_lifetime", 20)), 1)
-            cfg["plant_utilization"] = st.number_input("Plant utilisation", 0.1, 1.0, float(cfg.get("plant_utilization", 0.95)), 0.01, format="%.2f")
+            set_cfg("interest_rate", st.number_input("Interest / discount rate", 0.0, 0.30, float(cfg.get("interest_rate", 0.09)), 0.005, format="%.3f"))
+            set_cfg("project_lifetime", st.number_input("Project lifetime (years)", 5, 40, int(cfg.get("project_lifetime", 20)), 1))
+            set_cfg("plant_utilization", st.number_input("Plant utilisation", 0.1, 1.0, float(cfg.get("plant_utilization", 0.95)), 0.01, format="%.2f"))
+            cfg = st.session_state.plant_cfg
         with b4:
-            cfg["tax_rate"] = st.number_input("Tax rate", 0.0, 0.5, float(cfg.get("tax_rate", 0.0)), 0.01, format="%.2f")
+            set_cfg("tax_rate", st.number_input("Tax rate", 0.0, 0.5, float(cfg.get("tax_rate", 0.0)), 0.01, format="%.2f"))
             op_rate = cfg.get("operator_hourly_rate", {})
             base_rate = op_rate.get("rate", 38.0) if isinstance(op_rate, dict) else 38.0
             new_rate = st.number_input("Operator hourly rate (USD/h)", 5.0, 150.0, float(base_rate), 1.0)
-            cfg["operator_hourly_rate"] = {"rate": new_rate, **({"rate_uncertainty": op_rate.get("rate_uncertainty")} if isinstance(op_rate, dict) and op_rate.get("rate_uncertainty") else {})}
+            set_cfg("operator_hourly_rate", {"rate": new_rate, **({"rate_uncertainty": op_rate.get("rate_uncertainty")} if isinstance(op_rate, dict) and op_rate.get("rate_uncertainty") else {})})
+            cfg = st.session_state.plant_cfg
 
     # ---- Equipment editor ----
     with st.expander(f"🧰 Equipment ({len(specs)} items) — sized & costed live", expanded=True):
@@ -476,7 +534,8 @@ elif page == "🏭 Plant TEA Builder":
              "Material": s.get("material", "Carbon steel"), "Target yr": s.get("target_year", 2024)}
             for s in specs
         ])
-        edited = st.data_editor(eq_df, use_container_width=True, num_rows="dynamic", hide_index=True, key="eq_editor")
+        _ever = st.session_state.get("editor_ver", 0)
+        edited = st.data_editor(eq_df, use_container_width=True, num_rows="dynamic", hide_index=True, key=f"eq_editor_{_ever}")
         a1, a2, a3 = st.columns([1, 1, 2])
         with a1:
             if st.button("✅ Apply equipment table", use_container_width=True):
@@ -495,7 +554,8 @@ elif page == "🏭 Plant TEA Builder":
                         "target_year": safe_int(r["Target yr"], 2024),
                     })
                 st.session_state.equipment_specs = new_specs
-                st.session_state.mc_data = None
+                mark_dirty()
+                st.session_state.editor_ver = st.session_state.get("editor_ver", 0) + 1
                 st.rerun()
         with a2:
             # quick-add distillation kit
@@ -514,6 +574,8 @@ elif page == "🏭 Plant TEA Builder":
                 }[kit]
                 add.update({"process_type": cfg.get("process_type", "Fluids"), "target_year": 2024})
                 st.session_state.equipment_specs.append(add)
+                mark_dirty()
+                st.session_state.editor_ver = st.session_state.get("editor_ver", 0) + 1
                 st.rerun()
         with a3:
             st.caption("Tip: costs use the plant's process type for installation factors. "
@@ -544,7 +606,7 @@ elif page == "🏭 Plant TEA Builder":
             prods = cfg.get("plant_products", {})
             pdf = pd.DataFrame([{"Product": k, "Production": v.get("production"), "Price": v.get("price")}
                                 for k, v in prods.items()])
-            ed = st.data_editor(pdf, use_container_width=True, num_rows="dynamic", hide_index=True, key="prod_editor")
+            ed = st.data_editor(pdf, use_container_width=True, num_rows="dynamic", hide_index=True, key=f"prod_editor_{st.session_state.get('editor_ver', 0)}")
             if st.button("✅ Apply products"):
                 newp = {}
                 for _, r in ed.iterrows():
@@ -553,14 +615,15 @@ elif page == "🏭 Plant TEA Builder":
                     newp[str(r["Product"]).strip()] = {"production": safe_float(r["Production"], 0.0),
                                                        "price": safe_float(r["Price"], 0.0)}
                 cfg["plant_products"] = newp
-                st.session_state.mc_data = None
+                mark_dirty()
+                st.session_state.editor_ver = st.session_state.get("editor_ver", 0) + 1
                 st.rerun()
     with p2:
         with st.expander("🔌 Variable OPEX (consumption/day · price)", expanded=True):
             ins = cfg.get("variable_opex_inputs", {})
             idf = pd.DataFrame([{"Input": k, "Consumption": v.get("consumption"), "Price": v.get("price")}
                                 for k, v in ins.items()])
-            ed2 = st.data_editor(idf, use_container_width=True, num_rows="dynamic", hide_index=True, key="opex_editor")
+            ed2 = st.data_editor(idf, use_container_width=True, num_rows="dynamic", hide_index=True, key=f"opex_editor_{st.session_state.get('editor_ver', 0)}")
             if st.button("✅ Apply OPEX inputs"):
                 newi = {}
                 for _, r in ed2.iterrows():
@@ -569,7 +632,8 @@ elif page == "🏭 Plant TEA Builder":
                     newi[str(r["Input"]).strip()] = {"consumption": safe_float(r["Consumption"], 0.0),
                                                      "price": safe_float(r["Price"], 0.0)}
                 cfg["variable_opex_inputs"] = newi
-                st.session_state.mc_data = None
+                mark_dirty()
+                st.session_state.editor_ver = st.session_state.get("editor_ver", 0) + 1
                 st.rerun()
 
     run = st.button("🚀 Run TEA", type="primary", use_container_width=True)
@@ -795,12 +859,20 @@ elif page == "📊 Sensitivity & Uncertainty":
             try:
                 unc = json.loads(unc_txt)
                 if isinstance(unc, dict):
+                    _changed = False
                     if "project_uncertainties" in unc:
-                        cfg["project_uncertainties"] = unc["project_uncertainties"] or {}
+                        if cfg.get("project_uncertainties", {}) != (unc["project_uncertainties"] or {}):
+                            cfg["project_uncertainties"] = unc["project_uncertainties"] or {}
+                            _changed = True
                     for sec in ("variable_opex_inputs", "plant_products"):
                         for k, v in (unc.get(sec, {}) or {}).items():
                             if k in (cfg.get(sec, {}) or {}) and isinstance(v, dict):
-                                cfg[sec][k].update(v)
+                                for uk, uv in v.items():
+                                    if cfg[sec][k].get(uk) != uv:
+                                        cfg[sec][k][uk] = uv
+                                        _changed = True
+                    if _changed:
+                        mark_dirty()  # changed uncertainties invalidate old MC
                 plant2, e2 = current_plant()
                 if e2:
                     for e in e2:
@@ -873,10 +945,13 @@ elif page == "⚖️ Compare Designs":
     st.title("⚖️ Compare Designs")
     st.markdown("Pit presets (or your edited working plant) against each other: KPIs, cash-flow overlay, LCOP bars.")
     names = list(T.PRESETS.keys()) + ["✏️ Current working plant"]
-    sel = st.multiselect("Plants to compare (2–4)", names, default=names[:2], max_selections=4)
+    sel = st.multiselect("Plants to compare (2–4)", names, default=names[:2])
     if len(sel) < 2:
         st.info("Select at least two plants to compare.")
         st.stop()
+    if len(sel) > 4:
+        st.warning("Maximum 4 plants — comparing the first four selected.")
+        sel = sel[:4]
 
     plants, kpis, labels = [], [], []
     ok = True
@@ -949,37 +1024,34 @@ elif page == "📁 JSON & About":
         with c2:
             st.markdown("**Import plant JSON**")
             up = st.file_uploader("Upload {plant, equipment} JSON", type=["json"])
+            # import each uploaded file exactly once (guarded by id), then
+            # rerun so the sidebar badge + editors refresh in one motion
             if up is not None:
-                try:
-                    obj = json.loads(up.read().decode())
-                    pcfg, peq = T.parse_uploaded_json(obj)
-                    if pcfg:
-                        st.session_state.plant_cfg.update(pcfg)
-                    if peq:
-                        norm = []
-                        for e in peq:
-                            norm.append({
-                                "name": e.get("name", f"EQ-{len(norm)+1}"),
-                                "category": e.get("category"),
-                                "type": e.get("type"),
-                                "param": e.get("param", 0.0),
-                                "material": e.get("material", "Carbon steel"),
-                                "process_type": e.get("process_type", st.session_state.plant_cfg.get("process_type", "Fluids")),
-                                "target_year": e.get("target_year", 2024),
-                                "num_units": e.get("num_units"),
-                            })
-                        st.session_state.equipment_specs = norm
-                    # keep the selected preset as the reset baseline; the
-                    # sidebar "✏️ Edited" badge will flag the difference
-                    st.session_state.mc_data = None
-                    st.session_state.tea_ran = False
-                    st.success("Imported! Head to the Plant TEA Builder to review & run.")
-                except Exception as e:
-                    st.error(f"Import failed: {e}")
+                raw = up.getvalue()
+                file_id = (up.name, len(raw))
+                if st.session_state.get("last_upload_id") != file_id:
+                    try:
+                        import_plant_dict(json.loads(raw.decode()))
+                        st.session_state.import_notice = (
+                            True, "Imported! Head to the Plant TEA Builder to review & run.")
+                    except Exception as e:
+                        st.session_state.import_notice = (False, f"Import failed: {e}")
+                    st.session_state.last_upload_id = file_id
+                    st.rerun()
+            if st.session_state.get("import_notice"):
+                _ok, _msg = st.session_state.import_notice
+                (st.success if _ok else st.error)(_msg)
+                del st.session_state.import_notice  # show once
             st.markdown("**Try the bundled example**")
             if st.button("Load Fractional preset JSON"):
-                reset_to_preset("Fractional — Ethanol/Water (continuous)")
-                st.success("Loaded the Fractional preset into the working plant.")
+                try:
+                    bundled = json.loads(Path("presets/fractional.json").read_text())
+                    import_plant_dict(bundled)
+                    st.session_state.import_notice = (
+                        True, "Loaded presets/fractional.json into the working plant.")
+                    st.rerun()
+                except Exception as e:
+                    st.error(f"Could not load bundled file: {e}")
 
     with t2:
         st.markdown("## About this app")
