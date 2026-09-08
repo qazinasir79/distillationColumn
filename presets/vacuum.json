@@ -1,0 +1,90 @@
+{
+  "plant": {
+    "plant_name": "Vacuum Specialty Distillation",
+    "process_type": "Fluids",
+    "country": "Netherlands",
+    "interest_rate": 0.09,
+    "project_lifetime": 20,
+    "plant_utilization": 0.92,
+    "plant_products": {
+      "specialty_distillate": {
+        "production": 12000,
+        "price": 5.0
+      }
+    },
+    "variable_opex_inputs": {
+      "steam_LP": {
+        "consumption": 60000,
+        "price": 0.02
+      },
+      "electricity": {
+        "consumption": 90,
+        "price": 85
+      },
+      "cooling_water": {
+        "consumption": 350000,
+        "price": 0.00025
+      },
+      "feed_specialty": {
+        "consumption": 13500,
+        "price": 2.2
+      }
+    }
+  },
+  "equipment": [
+    {
+      "name": "T-201 Vacuum column",
+      "param": 12.0,
+      "process_type": "Fluids",
+      "category": "Towers",
+      "type": "Tray and packed",
+      "material": "Stainless steel",
+      "target_year": 2024
+    },
+    {
+      "name": "E-201 Reboiler",
+      "param": 40.0,
+      "process_type": "Fluids",
+      "category": "Heat exchangers",
+      "type": "Thermosiphon reboiler",
+      "material": "Carbon steel",
+      "target_year": 2024
+    },
+    {
+      "name": "E-202 Vacuum condenser",
+      "param": 70.0,
+      "process_type": "Fluids",
+      "category": "Heat exchangers",
+      "type": "Fixed tube",
+      "material": "Carbon steel",
+      "target_year": 2024
+    },
+    {
+      "name": "V-201 Receiver",
+      "param": 8.0,
+      "process_type": "Fluids",
+      "category": "Pressure vessels",
+      "type": "Horizontal",
+      "material": "Carbon steel",
+      "target_year": 2024
+    },
+    {
+      "name": "J-201 Steam ejector stage",
+      "param": 0.02,
+      "process_type": "Fluids",
+      "category": "Ejectors",
+      "type": "Two-stage, including condenser and piping",
+      "material": "Carbon steel",
+      "target_year": 2024
+    },
+    {
+      "name": "P-201 Bottoms pump",
+      "param": 10.0,
+      "process_type": "Fluids",
+      "category": "Pumps",
+      "type": "Centrifugal",
+      "material": "Carbon steel",
+      "target_year": 2024
+    }
+  ]
+}

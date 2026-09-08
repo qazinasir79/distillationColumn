@@ -1,0 +1,72 @@
+{
+  "plant": {
+    "plant_name": "Flash Pre-fractionator",
+    "process_type": "Fluids",
+    "country": "Netherlands",
+    "interest_rate": 0.09,
+    "project_lifetime": 25,
+    "plant_utilization": 0.96,
+    "plant_products": {
+      "light_ends": {
+        "production": 90000,
+        "price": 0.6
+      },
+      "flashed_liquid": {
+        "production": 210000,
+        "price": 0.44
+      }
+    },
+    "variable_opex_inputs": {
+      "electricity": {
+        "consumption": 80,
+        "price": 85
+      },
+      "cooling_water": {
+        "consumption": 250000,
+        "price": 0.00025
+      },
+      "feed_crude_cut": {
+        "consumption": 305000,
+        "price": 0.34
+      }
+    }
+  },
+  "equipment": [
+    {
+      "name": "V-501 Flash drum",
+      "param": 20.0,
+      "process_type": "Fluids",
+      "category": "Pressure vessels",
+      "type": "Horizontal",
+      "material": "Carbon steel",
+      "target_year": 2024
+    },
+    {
+      "name": "E-501 Feed preheater",
+      "param": 55.0,
+      "process_type": "Fluids",
+      "category": "Heat exchangers",
+      "type": "Floating head",
+      "material": "Carbon steel",
+      "target_year": 2024
+    },
+    {
+      "name": "P-501 Feed pump",
+      "param": 45.0,
+      "process_type": "Fluids",
+      "category": "Pumps",
+      "type": "Centrifugal",
+      "material": "Carbon steel",
+      "target_year": 2024
+    },
+    {
+      "name": "P-502 Liquid pump",
+      "param": 30.0,
+      "process_type": "Fluids",
+      "category": "Pumps",
+      "type": "Centrifugal",
+      "material": "Carbon steel",
+      "target_year": 2024
+    }
+  ]
+}

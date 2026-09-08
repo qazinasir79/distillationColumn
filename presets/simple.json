@@ -1,0 +1,73 @@
+{
+  "plant": {
+    "plant_name": "Batch Solvent Recovery Still",
+    "process_type": "Mixed",
+    "country": "Netherlands",
+    "interest_rate": 0.09,
+    "project_lifetime": 15,
+    "plant_utilization": 0.8,
+    "production_type": "batch",
+    "plant_products": {
+      "recovered_solvent": {
+        "production": 12000,
+        "price": 2.4
+      }
+    },
+    "variable_opex_inputs": {
+      "steam_LP": {
+        "consumption": 32000,
+        "price": 0.02
+      },
+      "electricity": {
+        "consumption": 25,
+        "price": 85
+      },
+      "cooling_water": {
+        "consumption": 150000,
+        "price": 0.00025
+      },
+      "spent_solvent_feed": {
+        "consumption": 13500,
+        "price": 0.15
+      }
+    }
+  },
+  "equipment": [
+    {
+      "name": "V-301 Jacketed still",
+      "param": 2.0,
+      "process_type": "Fluids",
+      "category": "Boilers, heaters, & furnaces",
+      "type": "Kettle, jacketed, glass-lined",
+      "material": "Carbon steel",
+      "target_year": 2024
+    },
+    {
+      "name": "E-301 Condenser",
+      "param": 25.0,
+      "process_type": "Fluids",
+      "category": "Heat exchangers",
+      "type": "Fixed tube",
+      "material": "Carbon steel",
+      "target_year": 2024
+    },
+    {
+      "name": "V-302 Receiver",
+      "param": 2.0,
+      "process_type": "Fluids",
+      "category": "Pressure vessels",
+      "type": "Horizontal",
+      "material": "Carbon steel",
+      "target_year": 2024
+    },
+    {
+      "name": "TK-301 Feed tank",
+      "param": 30.0,
+      "process_type": "Fluids",
+      "category": "Tanks",
+      "type": "Cone-roof tank",
+      "material": "Carbon steel",
+      "target_year": 2024
+    }
+  ]
+}

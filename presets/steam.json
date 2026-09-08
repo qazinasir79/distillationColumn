@@ -1,0 +1,76 @@
+{
+  "plant": {
+    "plant_name": "Essential Oil Steam Distillation",
+    "process_type": "Mixed",
+    "country": "Netherlands",
+    "interest_rate": 0.09,
+    "project_lifetime": 15,
+    "plant_utilization": 0.85,
+    "plant_products": {
+      "essential_oil": {
+        "production": 400,
+        "price": 85.0
+      },
+      "hydrosol_credit": {
+        "production": 5000,
+        "price": 0.4
+      }
+    },
+    "variable_opex_inputs": {
+      "steam_LP": {
+        "consumption": 40000,
+        "price": 0.02
+      },
+      "electricity": {
+        "consumption": 25,
+        "price": 85
+      },
+      "cooling_water": {
+        "consumption": 150000,
+        "price": 0.00025
+      },
+      "botanical_feed": {
+        "consumption": 6000,
+        "price": 1.5
+      }
+    }
+  },
+  "equipment": [
+    {
+      "name": "V-401 Steam vessel",
+      "param": 4.0,
+      "process_type": "Fluids",
+      "category": "Pressure vessels",
+      "type": "Vertical",
+      "material": "Carbon steel",
+      "target_year": 2024
+    },
+    {
+      "name": "E-401 Condenser",
+      "param": 30.0,
+      "process_type": "Fluids",
+      "category": "Heat exchangers",
+      "type": "Fixed tube",
+      "material": "Carbon steel",
+      "target_year": 2024
+    },
+    {
+      "name": "V-402 Separator",
+      "param": 1.5,
+      "process_type": "Fluids",
+      "category": "Pressure vessels",
+      "type": "Horizontal",
+      "material": "Carbon steel",
+      "target_year": 2024
+    },
+    {
+      "name": "B-401 Steam boiler",
+      "param": 2000.0,
+      "process_type": "Fluids",
+      "category": "Boilers, heaters, & furnaces",
+      "type": "Steam boiler",
+      "material": "Carbon steel",
+      "target_year": 2024
+    }
+  ]
+}

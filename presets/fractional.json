@@ -1,0 +1,95 @@
+{
+  "plant": {
+    "plant_name": "Ethanol-Water Fractionation",
+    "process_type": "Fluids",
+    "country": "Netherlands",
+    "interest_rate": 0.09,
+    "project_lifetime": 20,
+    "plant_utilization": 0.95,
+    "plant_products": {
+      "ethanol_distillate": {
+        "production": 40000,
+        "price": 1.35
+      },
+      "bottoms_credit": {
+        "production": 60000,
+        "price": 0.05
+      }
+    },
+    "variable_opex_inputs": {
+      "steam_LP": {
+        "consumption": 120000,
+        "price": 0.02
+      },
+      "electricity": {
+        "consumption": 60,
+        "price": 85
+      },
+      "cooling_water": {
+        "consumption": 500000,
+        "price": 0.00025
+      },
+      "feed_ethanol_water": {
+        "consumption": 100000,
+        "price": 0.3
+      }
+    }
+  },
+  "equipment": [
+    {
+      "name": "T-101 Fractionating column",
+      "param": 8.0,
+      "process_type": "Fluids",
+      "category": "Towers",
+      "type": "Tray and packed",
+      "material": "Carbon steel",
+      "target_year": 2024
+    },
+    {
+      "name": "E-101 Kettle reboiler",
+      "param": 60.0,
+      "process_type": "Fluids",
+      "category": "Heat exchangers",
+      "type": "Kettle reboiler",
+      "material": "Carbon steel",
+      "target_year": 2024
+    },
+    {
+      "name": "E-102 Condenser",
+      "param": 45.0,
+      "process_type": "Fluids",
+      "category": "Heat exchangers",
+      "type": "Fixed tube",
+      "material": "Carbon steel",
+      "target_year": 2024
+    },
+    {
+      "name": "V-101 Reflux drum",
+      "param": 6.0,
+      "process_type": "Fluids",
+      "category": "Pressure vessels",
+      "type": "Horizontal",
+      "material": "Carbon steel",
+      "target_year": 2024
+    },
+    {
+      "name": "P-101 Reflux pump",
+      "param": 15.0,
+      "process_type": "Fluids",
+      "category": "Pumps",
+      "type": "Centrifugal",
+      "material": "Carbon steel",
+      "target_year": 2024
+    },
+    {
+      "name": "Trays (sieve, 20)",
+      "param": 1.2,
+      "process_type": "Fluids",
+      "category": "Trays",
+      "type": "Sieve",
+      "material": "Carbon steel",
+      "target_year": 2024,
+      "num_units": 20
+    }
+  ]
+}
