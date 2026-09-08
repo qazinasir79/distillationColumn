@@ -26,7 +26,7 @@ function buildSidebar(active) {
     ${link('#/quiz', '✅', 'Quiz yourself', '#1a7f4e', active === 'quiz')}
     ${link('#/glossary', '📖', 'Glossary', '#7048e8', active === 'glossary')}
     <div style="margin-top:22px;padding:0 8px;font-size:11px;color:#8fa1b8;line-height:1.5">
-      Built from your handwritten distillation notes (8-page PDF).
+      © 2026 Qazi Nasir · <a href="https://qazinasir.com" target="_blank" rel="noopener" style="color:#8fa1b8">qazinasir.com</a>
     </div>`;
 }
 
