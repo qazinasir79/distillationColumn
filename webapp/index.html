@@ -1,0 +1,176 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Distillation TEA Studio — static edition</title>
+<meta name="description" content="Static (no-backend) distillation techno-economic analysis studio. Equipment costing, plant TEA, sensitivity, Monte Carlo — all in your browser.">
+<style>
+  :root {
+    --bg: #f8fafc; --card: #ffffff; --ink: #0f172a; --muted: #64748b;
+    --line: #e2e8f0; --accent: #2563eb; --accent-soft: #eff6ff;
+    --green: #16a34a; --green-soft: #f0fdf4; --amber: #d97706; --amber-soft: #fffbeb;
+    --red: #dc2626; --red-soft: #fef2f2; --radius: 12px;
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--bg); color: var(--ink);
+         font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+         font-size: 15px; line-height: 1.5; }
+  a { color: var(--accent); }
+  header.topbar { background: var(--card); border-bottom: 1px solid var(--line);
+    padding: 10px 20px; position: sticky; top: 0; z-index: 50; }
+  .topbar-row { display: flex; gap: 12px; align-items: center; flex-wrap: wrap; max-width: 1280px; margin: 0 auto; }
+  .brand { font-weight: 800; font-size: 1.1rem; }
+  .brand small { font-weight: 400; color: var(--muted); font-size: 0.8rem; }
+  nav.tabs { display: flex; gap: 4px; flex-wrap: wrap; margin-left: auto; }
+  nav.tabs button { border: 1px solid transparent; background: transparent; padding: 7px 12px;
+    border-radius: 999px; cursor: pointer; font-size: 0.9rem; color: var(--ink); }
+  nav.tabs button:hover { background: #f1f5f9; }
+  nav.tabs button.active { background: var(--accent-soft); border-color: #bfdbfe; color: #1e3a8a; font-weight: 700; }
+  .presetbar { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; max-width: 1280px; margin: 6px auto 0; }
+  .presetbar select { max-width: 420px; }
+  .badge { display: inline-block; font-size: 0.75rem; font-weight: 700; padding: 2px 10px; border-radius: 999px; }
+  .badge.clean { background: var(--green-soft); color: var(--green); border: 1px solid #bbf7d0; }
+  .badge.dirty { background: var(--amber-soft); color: var(--amber); border: 1px solid #fde68a; }
+  main { max-width: 1280px; margin: 0 auto; padding: 18px 20px 60px; }
+  .page { display: none; } .page.active { display: block; }
+  h1 { font-size: 1.6rem; margin: 0.2em 0 0.3em; }
+  h2 { font-size: 1.25rem; margin: 1.2em 0 0.4em; }
+  h3 { font-size: 1.05rem; margin: 1em 0 0.4em; }
+  .lede { color: var(--muted); margin-top: 0; }
+  .card { background: var(--card); border: 1px solid var(--line); border-radius: var(--radius); padding: 14px 16px; margin: 12px 0; }
+  .grid { display: grid; gap: 12px; }
+  .grid.kpi5 { grid-template-columns: repeat(5, 1fr); }
+  .grid.kpi4 { grid-template-columns: repeat(4, 1fr); }
+  .grid.c2 { grid-template-columns: 1fr 1fr; }
+  .grid.c3 { grid-template-columns: repeat(3, 1fr); }
+  .grid.c4 { grid-template-columns: repeat(4, 1fr); }
+  @media (max-width: 900px) { .grid.kpi5, .grid.kpi4, .grid.c4 { grid-template-columns: 1fr 1fr; } .grid.c2, .grid.c3 { grid-template-columns: 1fr; } }
+  .kpi { background: var(--card); border: 1px solid var(--line); border-radius: var(--radius); padding: 10px 12px; }
+  .kpi .kpi-label { font-size: 0.78rem; color: var(--muted); }
+  .kpi .kpi-value { font-size: 1.25rem; font-weight: 800; }
+  .kpi .kpi-sub { font-size: 0.75rem; color: var(--muted); }
+  .kpi.good .kpi-value { color: var(--green); } .kpi.bad .kpi-value { color: var(--red); }
+  .pill { display: inline-block; background: #f1f5f9; border: 1px solid var(--line);
+          border-radius: 999px; padding: 2px 10px; font-size: 0.78rem; color: #475569; margin: 2px 4px 2px 0; }
+  .callout { background: var(--green-soft); border: 1px solid #bbf7d0; border-radius: var(--radius); padding: 12px 14px; margin: 10px 0; }
+  .warn-callout { background: var(--amber-soft); border: 1px solid #fde68a; border-radius: var(--radius); padding: 12px 14px; margin: 10px 0; }
+  .err-callout { background: var(--red-soft); border: 1px solid #fecaca; border-radius: var(--radius); padding: 12px 14px; margin: 10px 0; color: #7f1d1d; }
+  .subtabs { display: flex; gap: 6px; flex-wrap: wrap; margin: 10px 0; }
+  .subtabs button { border: 1px solid var(--line); background: var(--card); padding: 6px 14px; border-radius: 999px; cursor: pointer; font-size: 0.88rem; }
+  .subtabs button.active { background: var(--ink); color: #fff; border-color: var(--ink); }
+  .flow-strip { display: flex; align-items: stretch; flex-wrap: wrap; gap: 0; margin: 10px 0; }
+  .flow-node { background: var(--accent-soft); border: 1px solid #bfdbfe; color: #1e3a8a;
+    padding: 8px 12px; border-radius: 10px; font-size: 0.82rem; font-weight: 600; }
+  .flow-arrow { align-self: center; padding: 0 6px; color: var(--muted); font-weight: 700; }
+  table.data { width: 100%; border-collapse: collapse; font-size: 0.88rem; }
+  table.data th, table.data td { border-bottom: 1px solid var(--line); padding: 7px 8px; text-align: left; }
+  table.data th { background: #f8fafc; font-size: 0.78rem; text-transform: uppercase; letter-spacing: 0.03em; color: var(--muted); }
+  table.data tr:last-child td { border-bottom: none; }
+  table.data td.num, table.data th.num { text-align: right; font-variant-numeric: tabular-nums; }
+  table.data input, table.data select { width: 100%; padding: 5px 7px; border: 1px solid var(--line); border-radius: 8px; font-size: 0.88rem; }
+  .field { margin: 8px 0; }
+  .field label { display: block; font-size: 0.8rem; color: var(--muted); margin-bottom: 3px; }
+  .field input, .field select, .field textarea { width: 100%; padding: 7px 9px; border: 1px solid var(--line); border-radius: 8px; font-size: 0.92rem; background: #fff; color: var(--ink); }
+  .field input[type="checkbox"] { width: auto; }
+  .btn { border: 1px solid var(--line); background: var(--card); padding: 8px 16px; border-radius: 9px;
+         cursor: pointer; font-size: 0.9rem; font-weight: 600; }
+  .btn:hover { background: #f1f5f9; }
+  .btn.primary { background: var(--accent); border-color: var(--accent); color: #fff; }
+  .btn.primary:hover { background: #1d4ed8; }
+  .btn.danger { color: var(--red); border-color: #fecaca; }
+  .btn.sm { padding: 4px 10px; font-size: 0.8rem; }
+  .btn-row { display: flex; gap: 8px; flex-wrap: wrap; margin: 10px 0; }
+  details.expander { background: var(--card); border: 1px solid var(--line); border-radius: var(--radius); margin: 12px 0; }
+  details.expander summary { padding: 12px 16px; cursor: pointer; font-weight: 700; }
+  details.expander .body { padding: 0 16px 14px; }
+  .chart-title { font-weight: 700; margin: 6px 0 4px; font-size: 0.95rem; }
+  .chart-sub { color: var(--muted); font-size: 0.82rem; text-align: center; }
+  .chart-empty { color: var(--muted); padding: 30px; text-align: center; border: 1px dashed var(--line); border-radius: var(--radius); }
+  .chart-legend { display: flex; gap: 12px; flex-wrap: wrap; justify-content: center; font-size: 0.8rem; color: #475569; margin-top: 6px; }
+  .chart-legend .sw { display: inline-block; width: 12px; height: 12px; border-radius: 3px; margin-right: 5px; vertical-align: baseline; }
+  .typebtns { display: grid; grid-template-columns: repeat(7, 1fr); gap: 8px; margin: 10px 0; }
+  @media (max-width: 900px) { .typebtns { grid-template-columns: repeat(4, 1fr); } }
+  .typebtns button { border: 1px solid var(--line); background: var(--card); border-radius: var(--radius);
+    padding: 10px 4px; cursor: pointer; font-size: 0.82rem; }
+  .typebtns button .ic { font-size: 1.4rem; display: block; }
+  .typebtns button.active { border-color: var(--accent); background: var(--accent-soft); font-weight: 700; }
+  .small { font-size: 0.82rem; color: var(--muted); }
+  .mono { font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; font-size: 0.85em; }
+  textarea.code { font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; font-size: 0.8rem; }
+  footer { border-top: 1px solid var(--line); color: var(--muted); font-size: 0.82rem; padding: 16px 20px 30px; text-align: center; }
+  ul.tight, ol.tight { margin: 4px 0; padding-left: 22px; }
+  ul.tight li, ol.tight li { margin: 2px 0; }
+</style>
+</head>
+<body>
+<header class="topbar">
+  <div class="topbar-row">
+    <div class="brand">⚗️ Distillation TEA Studio <small>static edition · runs 100% in your browser</small></div>
+    <nav class="tabs" id="nav"></nav>
+  </div>
+  <div class="presetbar">
+    <label class="small" for="presetSel">Working plant:</label>
+    <select id="presetSel"></select>
+    <span id="dirtyBadge"></span>
+    <span class="small" id="plantSummary"></span>
+  </div>
+</header>
+
+<main>
+  <section class="page" id="page-learn">
+    <h1>📚 Distillation Learning Lab</h1>
+    <p class="lede">Interactive study notes — seven distillation types, an equipment map, a decision helper,
+      and troubleshooting tables. When you're ready, cost a real design in the <b>Plant TEA Builder</b>.</p>
+    <div class="subtabs" id="learnTabs"></div>
+    <div id="learnBody"></div>
+  </section>
+
+  <section class="page" id="page-equip">
+    <h1>💰 Equipment Costing Studio</h1>
+    <p class="lede">Every cost comes from the built-in correlation database (Turton / Seider / Perry / Towler sources)
+      with <b>CEPCI inflation adjustment</b>. Pick a category → type → size and watch purchased vs. installed (direct) cost update live.</p>
+    <div id="equipBody"></div>
+  </section>
+
+  <section class="page" id="page-builder">
+    <h1>🏭 Plant TEA Builder</h1>
+    <p class="lede">Configure a distillation plant — equipment, products, utilities, finance — then run a full
+      assessment: CAPEX, OPEX, cash flow, <b>NPV · IRR · ROI · payback · LCOP</b>, with breakdown charts.</p>
+    <div id="builderBody"></div>
+  </section>
+
+  <section class="page" id="page-sens">
+    <h1>📊 Sensitivity &amp; Uncertainty</h1>
+    <p class="lede">One-way sensitivity, tornado diagrams, and Monte Carlo simulation on the working plant.</p>
+    <div class="subtabs" id="sensTabs"></div>
+    <div id="sensBody"></div>
+  </section>
+
+  <section class="page" id="page-compare">
+    <h1>⚖️ Compare Designs</h1>
+    <p class="lede">Snapshot the working plant as named designs, then compare KPIs side-by-side.</p>
+    <div id="compareBody"></div>
+  </section>
+
+  <section class="page" id="page-json">
+    <h1>💾 JSON &amp; About</h1>
+    <p class="lede">Export / import the working plant as JSON, and read the methodology notes.</p>
+    <div class="subtabs" id="jsonTabs"></div>
+    <div id="jsonBody"></div>
+  </section>
+</main>
+
+<footer>
+  Static edition — TEA engine ported to JavaScript and validated against OpenPyTEA
+  (<span id="parityNote">1,164 parity checks</span>).
+  Data: cost correlations, CEPCI, location factors, presets embedded in <span class="mono">js/data.js</span>.
+</footer>
+
+<script src="js/data.js"></script>
+<script src="js/tea.js"></script>
+<script src="js/charts.js"></script>
+<script src="js/app.js"></script>
+<script src="js/plant.js"></script>
+</body>
+</html>

@@ -31,6 +31,22 @@ Then open http://localhost:8501 in your browser.
 > Requires Python ≥ 3.10. All economics come from the `openpytea` package
 > (`pip install openpytea`), no proprietary tools needed.
 
+## 🌐 Static edition (no backend)
+
+`webapp/` is a **fully static HTML + JavaScript port** of the studio: the OpenPyTEA
+engine reimplemented in dependency-free JS, validated numerically against the
+Python engine (**1,164 parity checks**, `node test/parity.mjs`), plus Learn,
+Equipment, Builder, Sensitivity/Monte-Carlo, Compare, and JSON pages with
+hand-rolled SVG charts. Just open `webapp/index.html` or serve the folder:
+
+```bash
+cd webapp && python -m http.server 8123
+```
+
+Data + parity expectations are generated via `python tools/export_webapp_data.py`.
+See `webapp/README.md` for details and known differences (MC PRNG, no
+dependency-graph support).
+
 ## ✅ Tests
 
 ```bash
