@@ -109,6 +109,55 @@ def show_fig(fig, width_note=None):
         st.caption(width_note)
 
 
+def _finite(x) -> bool:
+    """True for real finite numbers (rejects None/NaN/±inf)."""
+    try:
+        return x is not None and pd.notna(x) and np.isfinite(float(x))
+    except (TypeError, ValueError):
+        return False
+
+
+def safe_float(v, default=0.0) -> float:
+    try:
+        f = float(v)
+        return f if pd.notna(f) else default
+    except (TypeError, ValueError):
+        return default
+
+
+def safe_int(v, default=1) -> int:
+    try:
+        f = float(v)
+        return int(f) if pd.notna(f) else default
+    except (TypeError, ValueError):
+        return default
+
+
+def sanitize_tornado(tdata: dict):
+    """Drop non-finite tornado factors so plotting can't crash.
+
+    PBT (=inf when a perturbation never pays back) and IRR (=NaN with no
+    sign change) routinely produce non-finite lows/highs. Returns
+    (plot_data_or_None, dropped_count, base_ok).
+    """
+    td = dict(tdata)
+    try:
+        lows = np.asarray(td["lows"], dtype=float)
+        highs = np.asarray(td["highs"], dtype=float)
+    except Exception:
+        return None, len(td.get("factors", [])), False
+    base_ok = _finite(td.get("base_value", float("nan")))
+    mask = np.isfinite(lows) & np.isfinite(highs)
+    dropped = int(len(mask) - np.sum(mask))
+    if not base_ok or not np.any(mask):
+        return None, dropped, base_ok
+    td["lows"] = lows[mask]
+    td["highs"] = highs[mask]
+    td["factors"] = [f for f, m in zip(td["factors"], mask) if m]
+    td["labels"] = [lb for lb, m in zip(td.get("labels", td["factors"]), mask) if m]
+    return td, dropped, base_ok
+
+
 # ----------------------------------------------------------------------------
 # Session state — the working plant
 # ----------------------------------------------------------------------------
@@ -150,7 +199,10 @@ with st.sidebar:
     if preset_choice != st.session_state.preset_name:
         reset_to_preset(preset_choice)
         st.rerun()
-    st.caption(T.PRESETS[st.session_state.preset_name]["blurb"])
+    _base = T.PRESETS[st.session_state.preset_name]
+    _custom = (st.session_state.plant_cfg != _base["plant"]
+               or st.session_state.equipment_specs != _base["equipment"])
+    st.caption((_base["blurb"] + ("  \n✏️ **Edited** — differs from the preset." if _custom else "")))
     if st.button("↺ Reset to preset", use_container_width=True):
         reset_to_preset(st.session_state.preset_name)
         st.rerun()
@@ -293,7 +345,11 @@ elif page == "💰 Equipment Costing":
                     f'<span class="pill">cost year: {int(row.get("cost_year")) if pd.notna(row.get("cost_year")) else "—"}</span>',
                     unsafe_allow_html=True)
         st.markdown(f"**Sizing parameter:** `{row.get('units') or '—'}`")
-        lo, hi = row.get("s_lower"), row.get("s_upper")
+        try:
+            _lo, _hi = float(row.get("s_lower")), float(row.get("s_upper"))
+        except (TypeError, ValueError):
+            _lo, _hi = float("nan"), float("nan")
+        lo, hi = _lo, _hi
         has_bounds = pd.notna(lo) and pd.notna(hi) and hi > lo
         if has_bounds:
             st.caption(f"Valid range: **{lo:g} – {hi:g}**. Above the parallelisation limit the database splits into multiple units automatically.")
@@ -318,10 +374,11 @@ elif page == "💰 Equipment Costing":
         mat = None if mat == "(correlation default)" else mat
         years = list(map(int, T.cepci_df().index.tolist()))
         tyear = st.selectbox("Target (installed-cost) year", years, index=years.index(2024))
-        nunits = st.number_input("Number of identical units (blank = auto)", min_value=1, max_value=50, value=1)
+        nunits = st.number_input("Number of identical units (1 = auto)", min_value=1, max_value=50, value=1)
         nunits = None if nunits == 1 else int(nunits)
         name = st.text_input("Equipment tag", value=f"{cat} unit")
 
+    eq = None
     try:
         eq = T.cost_equipment(name, cat, typ, float(param), process_type=ptype,
                               material=mat, target_year=int(tyear), num_units=nunits,
@@ -359,7 +416,8 @@ elif page == "💰 Equipment Costing":
                 ss, cc = curve
                 fig, ax = plt.subplots(figsize=(7, 4))
                 ax.plot(ss, cc, lw=2)
-                ax.scatter([float(param)], [float(eq.purchased_cost)], s=60, zorder=5)
+                if eq is not None and _finite(eq.purchased_cost):
+                    ax.scatter([float(param)], [float(eq.purchased_cost)], s=60, zorder=5)
                 ax.set_xscale("log"); ax.set_yscale("log")
                 ax.set_xlabel(f"Size ({r2.get('units') or 's'}) [log]")
                 ax.set_ylabel(f"Purchased cost ({int(tyear)} USD) [log]")
@@ -452,14 +510,14 @@ elif page == "🏭 Plant TEA Builder":
                     if pd.isna(r["Category"]) or str(r["Category"]).strip() == "":
                         continue
                     new_specs.append({
-                        "name": str(r["Tag"] or f"EQ-{len(new_specs)+1}"),
+                        "name": str(r["Tag"] if pd.notna(r["Tag"]) and str(r["Tag"]).strip() else f"EQ-{len(new_specs)+1}"),
                         "category": str(r["Category"]).strip(),
                         "type": str(r["Type"]).strip() or None,
-                        "param": float(r["Size (s)"] or 0),
-                        "num_units": int(r["Units"] or 1) or None,
-                        "material": str(r["Material"] or "Carbon steel"),
+                        "param": safe_float(r["Size (s)"], 0.0),
+                        "num_units": safe_int(r["Units"], 1) or None,
+                        "material": str(r["Material"] if pd.notna(r["Material"]) else "Carbon steel"),
                         "process_type": cfg.get("process_type", "Fluids"),
-                        "target_year": int(r["Target yr"] or 2024),
+                        "target_year": safe_int(r["Target yr"], 2024),
                     })
                 st.session_state.equipment_specs = new_specs
                 st.session_state.mc_data = None
@@ -476,7 +534,8 @@ elif page == "🏭 Plant TEA Builder":
                     "Reflux drum": {"name": "V-1 Reflux drum", "param": 6.0, "category": "Pressure vessels", "type": "Horizontal", "material": "Carbon steel"},
                     "Reflux pump": {"name": "P-1 Pump", "param": 15.0, "category": "Pumps", "type": "Centrifugal", "material": "Carbon steel"},
                     "Sieve trays ×20": {"name": "Trays", "param": 1.2, "category": "Trays", "type": "Sieve", "material": "Carbon steel", "num_units": 20},
-                    "Vacuum ejector": {"name": "J-1 Ejector", "param": 30.0, "category": "Ejectors", "type": "Two-stage, including condenser and piping", "material": "Carbon steel"},
+                    # NOTE: ejector sizing unit is kg/h/(N/m²); valid range ≈ 0.0007–0.034
+                    "Vacuum ejector": {"name": "J-1 Ejector", "param": 0.02, "category": "Ejectors", "type": "Two-stage, including condenser and piping", "material": "Carbon steel"},
                 }[kit]
                 add.update({"process_type": cfg.get("process_type", "Fluids"), "target_year": 2024})
                 st.session_state.equipment_specs.append(add)
@@ -516,8 +575,8 @@ elif page == "🏭 Plant TEA Builder":
                 for _, r in ed.iterrows():
                     if pd.isna(r["Product"]) or str(r["Product"]).strip() == "":
                         continue
-                    newp[str(r["Product"]).strip()] = {"production": float(r["Production"] or 0),
-                                                       "price": float(r["Price"] or 0)}
+                    newp[str(r["Product"]).strip()] = {"production": safe_float(r["Production"], 0.0),
+                                                       "price": safe_float(r["Price"], 0.0)}
                 cfg["plant_products"] = newp
                 st.session_state.mc_data = None
                 st.rerun()
@@ -532,8 +591,8 @@ elif page == "🏭 Plant TEA Builder":
                 for _, r in ed2.iterrows():
                     if pd.isna(r["Input"]) or str(r["Input"]).strip() == "":
                         continue
-                    newi[str(r["Input"]).strip()] = {"consumption": float(r["Consumption"] or 0),
-                                                     "price": float(r["Price"] or 0)}
+                    newi[str(r["Input"]).strip()] = {"consumption": safe_float(r["Consumption"], 0.0),
+                                                     "price": safe_float(r["Price"], 0.0)}
                 cfg["variable_opex_inputs"] = newi
                 st.session_state.mc_data = None
                 st.rerun()
@@ -541,6 +600,13 @@ elif page == "🏭 Plant TEA Builder":
     run = st.button("🚀 Run TEA", type="primary", use_container_width=True)
     if run or st.session_state.get("tea_ran", False):
         st.session_state.tea_ran = True
+        # friendly pre-validation before calling OpenPyTEA
+        if not specs:
+            st.error("No equipment defined — add at least one equipment item (or ↺ reset to the preset).")
+            st.stop()
+        if not (cfg.get("plant_products") or {}):
+            st.error("No products defined — add at least one product (OpenPyTEA needs a production profile).")
+            st.stop()
         plant, errors = current_plant()
         if errors:
             for e in errors:
@@ -559,13 +625,13 @@ elif page == "🏭 Plant TEA Builder":
             kpi_card("NPV", fmt_money(kpis["npv"]), f"@ {cfg.get('interest_rate',0):.0%} · {cfg.get('project_lifetime')} yr")
         with r2:
             irr = kpis["irr"]
-            kpi_card("IRR", f"{irr:.1%}" if pd.notna(irr) else "—", "internal rate of return")
+            kpi_card("IRR", f"{irr:.1%}" if _finite(irr) else "—", "internal rate of return")
         with r3:
-            kpi_card("ROI", f"{kpis['roi']:.0f}%" if pd.notna(kpis["roi"]) else "—", "return on investment")
+            kpi_card("ROI", f"{kpis['roi']:.0f}%" if _finite(kpis["roi"]) else "—", "return on investment")
         with r4:
-            kpi_card("Payback", f"{kpis['payback']:.1f} yr" if pd.notna(kpis["payback"]) else "—", "break-even time")
+            kpi_card("Payback", f"{kpis['payback']:.1f} yr" if _finite(kpis["payback"]) else "—", "break-even time")
         with r5:
-            kpi_card("LCOP", f"${kpis['lcop']:.3f}/kg" if pd.notna(kpis["lcop"]) else "—", "levelised cost of product")
+            kpi_card("LCOP", f"${kpis['lcop']:.3f}/kg" if _finite(kpis["lcop"]) else "—", "levelised cost of product")
 
         c1, c2, c3, c4 = st.columns(4)
         with c1:
@@ -682,7 +748,7 @@ elif page == "📊 Sensitivity & Uncertainty":
                                f"parameter: `{data['parameter']}`")
                     curve = data["curves"][0]
                     cdf = pd.DataFrame({"Δparam (%)": curve["x"], metric: curve["y"]})
-                    st.dataframe(cdf.style.format({"Δparam (%)": "{:.1f}", metric: "{:,.4g}"}),
+                    st.dataframe(cdf.style.format({"Δparam (%)": "{:.1f}", metric: "{:,.4g}"}, na_rep="—"),
                                  use_container_width=True, hide_index=True)
                 except Exception as e:
                     st.error(f"Sensitivity failed: {e}")
@@ -700,14 +766,30 @@ elif page == "📊 Sensitivity & Uncertainty":
                 try:
                     tdata = OA.tornado_data(plant, plus_minus_value=float(tpm), metric=tmetric,
                                             include_process_params=incl)
-                    fig, _ = OP.plot_tornado(tdata, show=False)
-                    # enlarge tornado figure for readability
-                    fig.set_size_inches(8, max(3.5, 0.55 * len(tdata["factors"]) + 1.5))
-                    show_fig(fig)
+                    plot_data, dropped, base_ok = sanitize_tornado(tdata)
+                    if not base_ok:
+                        st.warning(f"Baseline {tmetric} is not finite (no payback / no IRR at baseline) — "
+                                   "showing the ranking table only.")
+                    elif dropped:
+                        st.warning(f"{dropped} factor(s) gave non-finite {tmetric} under ±{tpm:.0%} "
+                                   f"(e.g. never pays back / IRR undefined) and were omitted from the chart — "
+                                   f"see the full table below.")
+                    if plot_data is not None:
+                        try:
+                            fig, _ = OP.plot_tornado(plot_data, show=False)
+                            # enlarge tornado figure for readability
+                            fig.set_size_inches(8, max(3.5, 0.55 * len(plot_data["factors"]) + 1.5))
+                            try:
+                                fig.tight_layout()
+                            except Exception:
+                                pass
+                            show_fig(fig)
+                        except Exception as e:
+                            st.warning(f"Tornado chart unavailable ({e}) — showing the ranking table only.")
                     tdf = pd.DataFrame({"factor": tdata["factors"], "low": tdata["lows"], "high": tdata["highs"]})
                     tdf["swing"] = (tdf["high"] - tdf["low"]).abs()
                     st.dataframe(tdf.sort_values("swing", ascending=False).style.format(
-                        {"low": "{:,.4g}", "high": "{:,.4g}", "swing": "{:,.4g}"}),
+                        {"low": "{:,.4g}", "high": "{:,.4g}", "swing": "{:,.4g}"}, na_rep="—"),
                         use_container_width=True, hide_index=True)
                 except Exception as e:
                     st.error(f"Tornado failed: {e}")
@@ -764,7 +846,14 @@ elif page == "📊 Sensitivity & Uncertainty":
         mc = st.session_state.mc_data
         if mc is not None:
             vals = np.asarray(mc["metrics"][mmetric], dtype=float)
+            n_total = len(vals)
             vals = vals[np.isfinite(vals)]
+            if len(vals) == 0:
+                st.warning(f"All {n_total:,} {mmetric} draws were non-finite (e.g. the plant never pays back "
+                           f"under uncertainty) — no distribution to show. Try LCOP/NPV or narrower uncertainties.")
+                st.stop()
+            if len(vals) < n_total:
+                st.caption(f"Note: {n_total - len(vals):,} of {n_total:,} draws were non-finite and excluded.")
             s1, s2, s3, s4 = st.columns(4)
             with s1:
                 kpi_card(f"{mmetric} mean", f"{np.mean(vals):,.4g}", f"σ = {np.std(vals):,.3g}")
@@ -841,7 +930,8 @@ elif page == "⚖️ Compare Designs":
         "IRR": k["irr"], "ROI": k["roi"], "Payback (yr)": k["payback"], "LCOP ($/kg)": k["lcop"],
     } for lb, k in zip(labels, kpis)]).set_index("Plant")
     st.dataframe(kdf.style.format({"Fixed capital": "${:,.0f}", "NPV": "${:,.0f}", "IRR": "{:.1%}",
-                                             "ROI": "{:.0f}%", "Payback (yr)": "{:.1f}", "LCOP ($/kg)": "{:.3f}"}),
+                                             "ROI": "{:.0f}%", "Payback (yr)": "{:.1f}", "LCOP ($/kg)": "{:.3f}"},
+                                  na_rep="—"),
                  use_container_width=True)
 
     g1, g2 = st.columns(2)
@@ -904,8 +994,10 @@ elif page == "📁 JSON & About":
                                 "num_units": e.get("num_units"),
                             })
                         st.session_state.equipment_specs = norm
-                    st.session_state.preset_name = list(T.PRESETS.keys())[0]
+                    # keep the selected preset as the reset baseline; the
+                    # sidebar "✏️ Edited" badge will flag the difference
                     st.session_state.mc_data = None
+                    st.session_state.tea_ran = False
                     st.success("Imported! Head to the Plant TEA Builder to review & run.")
                 except Exception as e:
                     st.error(f"Import failed: {e}")

@@ -107,8 +107,11 @@ def cost_curve(category: str, type_: str | None, n: int = 60,
     """Purchased-cost curve across the correlation's valid size range."""
     row = correlation_row(category, type_)
     import numpy as np
-    lo, hi = row.get("s_lower"), row.get("s_upper")
-    if pd.isna(lo) or pd.isna(hi) or lo is None or hi is None or lo <= 0 or hi <= lo:
+    try:
+        lo, hi = float(row.get("s_lower")), float(row.get("s_upper"))
+    except (TypeError, ValueError):
+        return None, row
+    if pd.isna(lo) or pd.isna(hi) or lo <= 0 or hi <= lo:
         return None, row
     ss = np.geomspace(float(lo), float(hi), n) if float(lo) > 0 else np.linspace(float(lo), float(hi), n)
     db = CostCorrelationDB()
@@ -311,18 +314,26 @@ def build_plant(plant_cfg: Dict[str, Any], equipment: List[Equipment]) -> Plant:
     return Plant(cfg)
 
 
+def _safefloat(v, default=float("nan")) -> float:
+    try:
+        f = float(v)
+        return f
+    except (TypeError, ValueError):
+        return default
+
+
 def plant_kpis(plant: Plant, additional_capex: bool = False) -> Dict[str, Any]:
     plant.calculate_all(additional_capex=additional_capex)
     out: Dict[str, Any] = {}
-    out["purchased_cost"] = float(getattr(plant, "purchased_cost", float("nan")))
-    out["isbl"] = float(getattr(plant, "isbl", float("nan")))
-    out["fixed_capital"] = float(getattr(plant, "fixed_capital", float("nan")))
-    out["working_capital"] = float(getattr(plant, "working_capital", 0.0) or 0.0)
-    out["variable_opex"] = float(getattr(plant, "variable_production_costs",
-                                           getattr(plant, "variable_opex", float("nan"))))
-    out["fixed_opex"] = float(getattr(plant, "fixed_production_costs",
-                                       getattr(plant, "fixed_opex", float("nan"))))
-    out["revenue"] = float(getattr(plant, "revenue", float("nan")))
+    out["purchased_cost"] = _safefloat(getattr(plant, "purchased_cost", float("nan")))
+    out["isbl"] = _safefloat(getattr(plant, "isbl", float("nan")))
+    out["fixed_capital"] = _safefloat(getattr(plant, "fixed_capital", float("nan")))
+    out["working_capital"] = _safefloat(getattr(plant, "working_capital", 0.0) or 0.0, default=0.0)
+    out["variable_opex"] = _safefloat(getattr(plant, "variable_production_costs",
+                                              getattr(plant, "variable_opex", float("nan"))))
+    out["fixed_opex"] = _safefloat(getattr(plant, "fixed_production_costs",
+                                            getattr(plant, "fixed_opex", float("nan"))))
+    out["revenue"] = _safefloat(getattr(plant, "revenue", float("nan")))
     try:
         out["npv"] = float(plant.calculate_npv())
     except Exception:
