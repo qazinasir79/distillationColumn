@@ -54,6 +54,7 @@ function initStepPlayer(card, proc) {
   const groups = [...svg.querySelectorAll('g[data-step]')];
   const text = card.querySelector('.step-text');
   const countEl = card.querySelector('.stepcount');
+  const bar = card.querySelector('#spBar');
   const btnPrev = card.querySelector('#spPrev'), btnPlay = card.querySelector('#spPlay'), btnNext = card.querySelector('#spNext');
   let idx = 0, timer = null;
   const total = proc.steps.length;
@@ -65,8 +66,12 @@ function initStepPlayer(card, proc) {
       g.classList.toggle('step-on', active && g.dataset.step == String(idx));
     });
     countEl.textContent = `${idx} / ${total}`;
-    if (!active) text.innerHTML = 'Press <b>▶ Play</b> — or step through — and each part of the diagram lights up as the notes describe it.';
+    if (bar) bar.style.width = `${(idx / total) * 100}%`;
+    if (!active) text.innerHTML = 'Press <b>▶ Play</b>, step through, or <b>click any part</b> of the diagram — each part lights up as the notes describe it.';
     else text.innerHTML = `<b>Step ${idx}:</b> ${esc(proc.steps[idx - 1])}`;
+    text.classList.remove('swap');
+    void text.offsetWidth;
+    text.classList.add('swap');
   }
   function stop() { if (timer) { clearInterval(timer); timer = null; btnPlay.textContent = '▶ Play'; } }
   btnPrev.onclick = () => { stop(); idx = Math.max(0, idx - 1); apply(); };
@@ -79,6 +84,23 @@ function initStepPlayer(card, proc) {
     tick();
     timer = setInterval(tick, 2600);
   };
+  svg.addEventListener('click', e => {
+    const g = e.target && e.target.closest ? e.target.closest('g[data-step]') : null;
+    if (!g || !svg.contains(g)) return;
+    const n = parseInt(g.dataset.step, 10);
+    if (!(n >= 1 && n <= total)) return;
+    stop(); idx = n; apply();
+  });
+  if (window._spKey) document.removeEventListener('keydown', window._spKey);
+  window._spKey = e => {
+    if (!document.body.contains(svg)) return;
+    if (e.key === 'ArrowRight') { stop(); idx = Math.min(total, idx + 1); apply(); }
+    else if (e.key === 'ArrowLeft') { stop(); idx = Math.max(0, idx - 1); apply(); }
+  };
+  document.addEventListener('keydown', window._spKey);
+  try {
+    if (window.matchMedia && matchMedia('(prefers-reduced-motion: reduce)').matches && svg.pauseAnimations) svg.pauseAnimations();
+  } catch (_) { /* older browsers / jsdom: ignore */ }
   apply();
 }
 
@@ -226,6 +248,7 @@ function renderProcess(id) {
         <button class="stepbtn" id="spNext" type="button">Next →</button>
         <span class="step-text" id="spText"></span>
         <span class="stepcount" id="spCount"></span>
+        <div class="stepprog"><i id="spBar"></i></div>
       </div>
     </div>
 

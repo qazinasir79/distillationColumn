@@ -44,7 +44,7 @@ D.pipe = (d, color = C.pipe, w = 3.5) =>
 
 D.flow = (d, color = C.pipe, w = 3.5, head = true) => {
   const k = Object.keys(C).find(kk => C[kk] === color) || 'pipe';
-  return `<path d="${d}" fill="none" stroke="${color}" stroke-width="${w}" stroke-linecap="round" stroke-linejoin="round"${head ? ` marker-end="url(#m-${k})"` : ''}/>`;
+  return `<path class="flowline" d="${d}" fill="none" stroke="${color}" stroke-width="${w}" stroke-linecap="round" stroke-linejoin="round"${head ? ` marker-end="url(#m-${k})"` : ''}/>`;
 };
 
 D.valve = (x, y, rot = 0, color = C.steel) =>
@@ -90,8 +90,8 @@ D.flowArrows = (xUp, xDown, yTop, yBot, step) => {
   for (let i = 1; i <= n; i++) {
     const y = yBot - i * gap;
     s += D.part(step, 'Vapour rises up (red) / liquid flows down (blue)',
-      `<path d="M${xUp},${y + 7} L${xUp},${y - 7} L${xUp - 5},${y - 1} M${xUp},${y - 7} L${xUp + 5},${y - 1}" stroke="${C.red}" stroke-width="2.6" fill="none" stroke-linecap="round"/>
-       <path d="M${xDown},${y - 7} L${xDown},${y + 7} L${xDown - 5},${y + 1} M${xDown},${y + 7} L${xDown + 5},${y + 1}" stroke="${C.blue}" stroke-width="2.6" fill="none" stroke-linecap="round"/>`);
+      `<path class="vapor" d="M${xUp},${y + 7} L${xUp},${y - 7} L${xUp - 5},${y - 1} M${xUp},${y - 7} L${xUp + 5},${y - 1}" stroke="${C.red}" stroke-width="2.6" fill="none" stroke-linecap="round"/>
+       <path class="liquid" d="M${xDown},${y - 7} L${xDown},${y + 7} L${xDown - 5},${y + 1} M${xDown},${y + 7} L${xDown + 5},${y + 1}" stroke="${C.blue}" stroke-width="2.6" fill="none" stroke-linecap="round"/>`);
   }
   return s;
 };
