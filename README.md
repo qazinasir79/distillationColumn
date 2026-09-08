@@ -31,6 +31,17 @@ Then open http://localhost:8501 in your browser.
 > Requires Python ≥ 3.10. All economics come from the `openpytea` package
 > (`pip install openpytea`), no proprietary tools needed.
 
+## ✅ Tests
+
+```bash
+pip install -r requirements-dev.txt
+pytest tests/ -q
+```
+
+28 tests cover: all presets + KPIs, a 384-entry cost-database sweep, CEPCI-gap
+handling, breakdown/cash-flow/sensitivity/tornado/Monte-Carlo smoke tests,
+input sanitizers, malformed-input handling, and the distillation content base.
+
 ## 📁 Repository layout
 
 ```

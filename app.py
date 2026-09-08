@@ -109,53 +109,11 @@ def show_fig(fig, width_note=None):
         st.caption(width_note)
 
 
-def _finite(x) -> bool:
-    """True for real finite numbers (rejects None/NaN/±inf)."""
-    try:
-        return x is not None and pd.notna(x) and np.isfinite(float(x))
-    except (TypeError, ValueError):
-        return False
-
-
-def safe_float(v, default=0.0) -> float:
-    try:
-        f = float(v)
-        return f if pd.notna(f) else default
-    except (TypeError, ValueError):
-        return default
-
-
-def safe_int(v, default=1) -> int:
-    try:
-        f = float(v)
-        return int(f) if pd.notna(f) else default
-    except (TypeError, ValueError):
-        return default
-
-
-def sanitize_tornado(tdata: dict):
-    """Drop non-finite tornado factors so plotting can't crash.
-
-    PBT (=inf when a perturbation never pays back) and IRR (=NaN with no
-    sign change) routinely produce non-finite lows/highs. Returns
-    (plot_data_or_None, dropped_count, base_ok).
-    """
-    td = dict(tdata)
-    try:
-        lows = np.asarray(td["lows"], dtype=float)
-        highs = np.asarray(td["highs"], dtype=float)
-    except Exception:
-        return None, len(td.get("factors", [])), False
-    base_ok = _finite(td.get("base_value", float("nan")))
-    mask = np.isfinite(lows) & np.isfinite(highs)
-    dropped = int(len(mask) - np.sum(mask))
-    if not base_ok or not np.any(mask):
-        return None, dropped, base_ok
-    td["lows"] = lows[mask]
-    td["highs"] = highs[mask]
-    td["factors"] = [f for f, m in zip(td["factors"], mask) if m]
-    td["labels"] = [lb for lb, m in zip(td.get("labels", td["factors"]), mask) if m]
-    return td, dropped, base_ok
+# Robustness helpers live in tea_core (unit-testable); thin aliases here.
+_finite = T.is_finite_number
+safe_float = T.safe_float
+safe_int = T.safe_int
+sanitize_tornado = T.sanitize_tornado
 
 
 # ----------------------------------------------------------------------------
@@ -344,6 +302,15 @@ elif page == "💰 Equipment Costing":
                     f'<span class="pill">form: {row.get("form")}</span> '
                     f'<span class="pill">cost year: {int(row.get("cost_year")) if pd.notna(row.get("cost_year")) else "—"}</span>',
                     unsafe_allow_html=True)
+        try:
+            _cy = int(row.get("cost_year"))
+        except (TypeError, ValueError):
+            _cy = None
+        _cepci_years = list(map(int, T.cepci_df().index.tolist()))
+        if _cy is not None and _cy not in _cepci_years:
+            st.warning(f"⚠️ This correlation's cost year ({_cy}) is outside the CEPCI table "
+                       f"({_cepci_years[0]}–{_cepci_years[-1]}), so OpenPyTEA cannot inflation-adjust it. "
+                       f"Costing is unavailable for this entry (upstream data gap).")
         st.markdown(f"**Sizing parameter:** `{row.get('units') or '—'}`")
         try:
             _lo, _hi = float(row.get("s_lower")), float(row.get("s_upper"))
@@ -411,7 +378,15 @@ elif page == "💰 Equipment Costing":
         try:
             (curve, r2) = T.cost_curve(cat, typ, process_type=ptype, material=mat, target_year=int(tyear))
             if curve is None:
-                st.info("No bounded size range for this correlation, so no curve is drawn.")
+                try:
+                    _ccy = int(r2.get("cost_year"))
+                except (TypeError, ValueError):
+                    _ccy = None
+                if _ccy is not None and _ccy not in list(map(int, T.cepci_df().index.tolist())):
+                    st.info(f"No curve: cost year {_ccy} is outside the CEPCI table, so values "
+                            f"can't be adjusted to the {int(tyear)} basis.")
+                else:
+                    st.info("No bounded size range for this correlation, so no curve is drawn.")
             else:
                 ss, cc = curve
                 fig, ax = plt.subplots(figsize=(7, 4))

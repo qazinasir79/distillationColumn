@@ -123,12 +123,13 @@ def cost_curve(category: str, type_: str | None, n: int = 60,
         except Exception:
             c = float("nan")
         costs.append(c)
-    # inflation adjust to target year
+    # inflation adjust to target year; if the correlation's cost year is
+    # outside the CEPCI table, refuse to draw rather than show stale dollars
     try:
         f = cepci_factor(int(row["cost_year"]), target_year)
         costs = [c * f for c in costs]
     except Exception:
-        pass
+        return None, row
     return (ss, costs), row
 
 
@@ -429,6 +430,63 @@ def fig_monte_carlo(mc_data, **kw):
 def fig_monte_carlo_inputs(mc_data, **kw):
     figs = OP.plot_monte_carlo_inputs(mc_data, show=False, **kw)
     return figs
+
+
+# ----------------------------------------------------------------------------
+# UI-robustness helpers (unit-testable; used by app.py)
+# ----------------------------------------------------------------------------
+
+def is_finite_number(x) -> bool:
+    """True for real finite numbers (rejects None/NaN/±inf)."""
+    try:
+        import numpy as _np
+        return x is not None and pd.notna(x) and bool(_np.isfinite(float(x)))
+    except (TypeError, ValueError):
+        return False
+
+
+def safe_float(v, default=0.0) -> float:
+    """NaN/None/''-proof float coercion for editable-table cells."""
+    try:
+        f = float(v)
+        return f if pd.notna(f) else default
+    except (TypeError, ValueError):
+        return default
+
+
+def safe_int(v, default=1) -> int:
+    """NaN/None/''-proof int coercion for editable-table cells."""
+    try:
+        f = float(v)
+        return int(f) if pd.notna(f) else default
+    except (TypeError, ValueError):
+        return default
+
+
+def sanitize_tornado(tdata: dict):
+    """Drop non-finite tornado factors so plotting can't crash.
+
+    PBT (=inf when a perturbation never pays back) and IRR (=NaN with no
+    sign change) routinely produce non-finite lows/highs. Returns
+    (plot_data_or_None, dropped_count, base_ok).
+    """
+    import numpy as _np
+    td = dict(tdata)
+    try:
+        lows = _np.asarray(td["lows"], dtype=float)
+        highs = _np.asarray(td["highs"], dtype=float)
+    except Exception:
+        return None, len(td.get("factors", [])), False
+    base_ok = is_finite_number(td.get("base_value", float("nan")))
+    mask = _np.isfinite(lows) & _np.isfinite(highs)
+    dropped = int(len(mask) - _np.sum(mask))
+    if not base_ok or not _np.any(mask):
+        return None, dropped, base_ok
+    td["lows"] = lows[mask]
+    td["highs"] = highs[mask]
+    td["factors"] = [f for f, m in zip(td["factors"], mask) if m]
+    td["labels"] = [lb for lb, m in zip(td.get("labels", td["factors"]), mask) if m]
+    return td, dropped, base_ok
 
 
 # ----------------------------------------------------------------------------
